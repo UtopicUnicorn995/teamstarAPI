@@ -26,7 +26,7 @@ const generateAccessToken = (user) => {
 
 // ONLY CREATE routes because the model and database has already been defined in the mongodb atlas, was defined at react native realm.
 
-//Log in toget the auth token
+//Log in to get the auth token
 router.post("/login", async (req, res) => {
   const { phone, pin } = req.body;
 
@@ -184,7 +184,6 @@ router.get("/getCreatedTasks/:user_id", async (req, res) => {
     await client.connect();
 
     const collection = database.collection("Task");
-
     const user_id = req.params.user_id;
 
     if (!ObjectId.isValid(user_id)) {
@@ -550,56 +549,6 @@ router.patch("/changeUserRole/:target_id", async (req, res) => {
   }
 });
 
-router.patch("/UpdateUser/", async (req, res) => {
-  try {
-    await client.connect();
-
-    const collection = database.collection("User");
-
-    const userId = req.user._id;
-
-    if (!ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid User ID format" });
-    }
-
-    const user = await collection.findOne({ _id: new ObjectId(userId) });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (user.role === "admin") {
-      return res.status(403).json({ message: "Admins cannot change roles" });
-    }
-
-    let newRole;
-    if (user.role === "supervisor") {
-      newRole = "member";
-    } else if (user.role === "member") {
-      newRole = "supervisor";
-    } else {
-      return res.status(400).json({ message: "Invalid role" });
-    }
-
-    const updateResult = await collection.updateOne(
-      { _id: new ObjectId(userId) },
-      { $set: { role: newRole } }
-    );
-
-    if (updateResult.modifiedCount === 1) {
-      res.status(200).json({
-        message: `User role changed to ${newRole} successfully`,
-      });
-    } else {
-      res.status(500).json({ message: "Failed to change user role" });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
-});
-
 //Post Method create customer -> only if ID being used is an admin
 router.post("/createCustomer/", authenticateToken, async (req, res) => {
   const { name, email } = req.body;
@@ -876,7 +825,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
   }
 });
 
-//Update task by ID Method -> pending
+//Update task by ID Method -> done
 router.put("/updateTask/:id", authenticateToken, async (req, res) => {
   try {
     await client.connect();
@@ -963,6 +912,109 @@ router.put("/updateTask/:id", authenticateToken, async (req, res) => {
     await client.close();
   }
 });
+
+//Update the current user -> done
+router.put("/updateCurrentUser/", authenticateToken, async (req, res) => {
+  try {
+    await client.connect();
+
+    const {
+     name,
+     phone,
+     pin,
+     email
+    } = req.body;
+
+    const userCollection = database.collection('User')
+    const user = req.user._id;
+
+    const currentUser = await userCollection.findOne({
+      _id: new ObjectId(user),
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const updatedUser = {
+      name: name ? name : currentUser.name,
+      phone: phone ? phone : currentUser.phone,
+      pin:  pin ? pin : currentUser.pin,
+      email:  email ? email : currentUser.email
+    }
+
+
+    const result = await userCollection.updateOne(
+      { _id: new ObjectId(user) },
+      { $set: updatedUser }
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(304).json({ message: "No changes made to the User" });
+    }
+
+    res.status(200).json({
+      message: "User updated successfully",
+      updateId: updatedUser.insertedId,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  } finally {
+    await client.close();
+  }
+});
+
+//Update the current user -> pending
+router.put("//", authenticateToken, async (req, res) => {
+  try {
+    await client.connect();
+
+    const {
+     name,
+     phone,
+     pin,
+     email
+    } = req.body;
+
+    const userCollection = database.collection('User')
+    const user = req.user._id;
+
+    const currentUser = await userCollection.findOne({
+      _id: new ObjectId(user),
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const updatedUser = {
+      name: name ? name : currentUser.name,
+      phone: phone ? phone : currentUser.phone,
+      pin:  pin ? pin : currentUser.pin,
+      email:  email ? email : currentUser.email
+    }
+
+
+    const result = await userCollection.updateOne(
+      { _id: new ObjectId(user) },
+      { $set: updatedUser }
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(304).json({ message: "No changes made to the User" });
+    }
+
+    res.status(200).json({
+      message: "User updated successfully",
+      updateId: updatedUser.insertedId,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  } finally {
+    await client.close();
+  }
+});
+
 
 
 module.exports = router;
