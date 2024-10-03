@@ -21,7 +21,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 const generateAccessToken = (user) => {
-  return jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
+  return jwt.sign(user, process.env.ACCESS_TOKEN_SECRET);
 };
 
 // ONLY CREATE routes because the model and database has already been defined in the mongodb atlas, was defined at react native realm.
@@ -66,10 +66,9 @@ router.post("/login", async (req, res) => {
 });
 
 //Get all Method
-router.get("/getAllUsers", async (req, res) => {
+router.get("/getAllUsers", authenticateToken, async (req, res) => {
   try {
     await client.connect();
-
     const collection = database.collection("User");
 
     const items = await collection.find({}).toArray();
@@ -82,7 +81,7 @@ router.get("/getAllUsers", async (req, res) => {
 });
 
 //done
-router.get("/getAllTasks", async (req, res) => {
+router.get("/getAllTasks", authenticateToken, async (req, res) => {
   console.log("items");
   try {
     await client.connect();
@@ -100,7 +99,7 @@ router.get("/getAllTasks", async (req, res) => {
 });
 
 //done
-router.get("/getAllCustomers", async (req, res) => {
+router.get("/getAllCustomers", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -116,7 +115,7 @@ router.get("/getAllCustomers", async (req, res) => {
 });
 
 //done
-router.get("/getAllTaskAttachments", async (req, res) => {
+router.get("/getAllTaskAttachments", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -132,7 +131,7 @@ router.get("/getAllTaskAttachments", async (req, res) => {
 });
 
 //done
-router.get("/getAllReports", async (req, res) => {
+router.get("/getAllReports", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -148,38 +147,42 @@ router.get("/getAllReports", async (req, res) => {
 });
 
 // Get all customers created by specific user -> done
-router.get("/getCreatedCustomers/:user_id", async (req, res) => {
-  try {
-    await client.connect();
+router.get(
+  "/getCreatedCustomers/:user_id",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await client.connect();
 
-    const collection = database.collection("Customer");
+      const collection = database.collection("Customer");
 
-    const user_id = req.params.user_id;
+      const user_id = req.params.user_id;
 
-    if (!ObjectId.isValid(user_id)) {
-      return res.status(400).json({ message: "Invalid report ID format" });
+      if (!ObjectId.isValid(user_id)) {
+        return res.status(400).json({ message: "Invalid report ID format" });
+      }
+
+      const item = await collection
+        .find({
+          created_by: new ObjectId(user_id),
+        })
+        .toArray();
+
+      if (item) {
+        res.status(200).json(item);
+      } else {
+        res.status(404).json({ message: "Report not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    } finally {
+      await client.close();
     }
-
-    const item = await collection
-      .find({
-        created_by: new ObjectId(user_id),
-      })
-      .toArray();
-
-    if (item) {
-      res.status(200).json(item);
-    } else {
-      res.status(404).json({ message: "Report not found" });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
-});
+);
 
 // Get all tasks used by certain customer -> done
-router.get("/getCreatedTasks/:user_id", async (req, res) => {
+router.get("/getCreatedTasks/:user_id", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -209,7 +212,7 @@ router.get("/getCreatedTasks/:user_id", async (req, res) => {
 });
 
 //Get by specific queries
-router.get("/getUser/:user_id", async (req, res) => {
+router.get("/getUser/:user_id", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -263,7 +266,7 @@ router.get("/getCurrentUser/", authenticateToken, async (req, res) => {
 });
 
 //done
-router.get("/getTask/:id", async (req, res) => {
+router.get("/getTask/:id", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -290,7 +293,7 @@ router.get("/getTask/:id", async (req, res) => {
 });
 
 //done
-router.get("/getCustomer/:id", async (req, res) => {
+router.get("/getCustomer/:id", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -317,7 +320,7 @@ router.get("/getCustomer/:id", async (req, res) => {
 });
 
 //done
-router.get("/getAttachment/:id", async (req, res) => {
+router.get("/getAttachment/:id", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -344,7 +347,7 @@ router.get("/getAttachment/:id", async (req, res) => {
 });
 
 //done
-router.get("/getReport/:id", async (req, res) => {
+router.get("/getReport/:id", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -437,7 +440,7 @@ router.delete("/deleteUser/:user_id", authenticateToken, async (req, res) => {
     const collection = database.collection("User");
 
     const userToDeleteId = req.params.user_id;
-    const userId = req.user._id
+    const userId = req.user._id;
 
     if (!ObjectId.isValid(userToDeleteId)) {
       return res.status(400).json({ message: "Invalid User ID format" });
@@ -449,8 +452,9 @@ router.delete("/deleteUser/:user_id", authenticateToken, async (req, res) => {
         .json({ message: "The inviter is not an admin or supervsor" });
     }
 
-
-    const result = await collection.deleteOne({ _id: new ObjectId(userToDeleteId) });
+    const result = await collection.deleteOne({
+      _id: new ObjectId(userToDeleteId),
+    });
 
     if (result.deletedCount === 1) {
       res.status(200).json({ message: "User deleted successfully" });
@@ -465,7 +469,7 @@ router.delete("/deleteUser/:user_id", authenticateToken, async (req, res) => {
 });
 
 //Delete report by ID -> done
-router.delete("/deleteReport/:report_id", async (req, res) => {
+router.delete("/deleteReport/:report_id", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -492,14 +496,14 @@ router.delete("/deleteReport/:report_id", async (req, res) => {
 });
 
 //Change user role -> done
-router.patch("/changeUserRole/:target_id", async (req, res) => {
+router.patch("/changeUserRole/:target_id", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
     const collection = database.collection("User");
 
     const user = req.user;
-    const targetUserId = req.params.target_id
+    const targetUserId = req.params.target_id;
 
     if (!ObjectId.isValid(targetUserId)) {
       return res.status(400).json({ message: "Invalid User ID format" });
@@ -511,7 +515,9 @@ router.patch("/changeUserRole/:target_id", async (req, res) => {
         .json({ message: "Members cannot change another user's role." });
     }
 
-    const targetUser = await collection.findOne({ _id: new ObjectId(targetUserId) });
+    const targetUser = await collection.findOne({
+      _id: new ObjectId(targetUserId),
+    });
 
     if (!targetUser) {
       return res.status(404).json({ message: "User not found" });
@@ -874,11 +880,16 @@ router.put("/updateTask/:id", authenticateToken, async (req, res) => {
     const updatedTaskData = {
       title: title || currentTask.title,
       description: description || currentTask.description,
-      customer_id: customer_id ? new ObjectId(customer_id) : currentTask.customer_id,
+      customer_id: customer_id
+        ? new ObjectId(customer_id)
+        : currentTask.customer_id,
       due: due ? new Date(due) : currentTask.due,
       startTime: startTime || currentTask.startTime,
       endTime: endTime || currentTask.endTime,
-      duration: duration !== undefined ? new Double(duration) : new Double(currentTask.duration),
+      duration:
+        duration !== undefined
+          ? new Double(duration)
+          : new Double(currentTask.duration),
       recurring: recurring || currentTask.recurring,
       nextSchedules: nextSchedules || currentTask.nextSchedules,
       priorityLevel: priorityLevel || currentTask.priorityLevel,
@@ -886,8 +897,12 @@ router.put("/updateTask/:id", authenticateToken, async (req, res) => {
       team_id: team_id ? new ObjectId(team_id) : currentTask.team_id,
       assignee: assignee ? new ObjectId(assignee) : currentTask.assignee,
       location: location || currentTask.location,
-      updated_by: updated_by ? new ObjectId(updated_by) : new ObjectId(user._id),
-      completedAt: completedAt ? new Date(completedAt) : currentTask.completedAt,
+      updated_by: updated_by
+        ? new ObjectId(updated_by)
+        : new ObjectId(user._id),
+      completedAt: completedAt
+        ? new Date(completedAt)
+        : currentTask.completedAt,
       deletedAt: deletedAt ? new Date(deletedAt) : currentTask.deletedAt,
       updatedAt: new Date(),
     };
@@ -918,14 +933,9 @@ router.put("/updateCurrentUser/", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
-    const {
-     name,
-     phone,
-     pin,
-     email
-    } = req.body;
+    const { name, phone, pin, email } = req.body;
 
-    const userCollection = database.collection('User')
+    const userCollection = database.collection("User");
     const user = req.user._id;
 
     const currentUser = await userCollection.findOne({
@@ -939,10 +949,9 @@ router.put("/updateCurrentUser/", authenticateToken, async (req, res) => {
     const updatedUser = {
       name: name ? name : currentUser.name,
       phone: phone ? phone : currentUser.phone,
-      pin:  pin ? pin : currentUser.pin,
-      email:  email ? email : currentUser.email
-    }
-
+      pin: pin ? pin : currentUser.pin,
+      email: email ? email : currentUser.email,
+    };
 
     const result = await userCollection.updateOne(
       { _id: new ObjectId(user) },
@@ -969,14 +978,9 @@ router.put("//", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
-    const {
-     name,
-     phone,
-     pin,
-     email
-    } = req.body;
+    const { name, phone, pin, email } = req.body;
 
-    const userCollection = database.collection('User')
+    const userCollection = database.collection("User");
     const user = req.user._id;
 
     const currentUser = await userCollection.findOne({
@@ -990,10 +994,9 @@ router.put("//", authenticateToken, async (req, res) => {
     const updatedUser = {
       name: name ? name : currentUser.name,
       phone: phone ? phone : currentUser.phone,
-      pin:  pin ? pin : currentUser.pin,
-      email:  email ? email : currentUser.email
-    }
-
+      pin: pin ? pin : currentUser.pin,
+      email: email ? email : currentUser.email,
+    };
 
     const result = await userCollection.updateOne(
       { _id: new ObjectId(user) },
@@ -1014,7 +1017,5 @@ router.put("//", authenticateToken, async (req, res) => {
     await client.close();
   }
 });
-
-
 
 module.exports = router;
