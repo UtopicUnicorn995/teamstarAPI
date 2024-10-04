@@ -99,6 +99,32 @@ router.get("/getAllTasks", authenticateToken, async (req, res) => {
 });
 
 //done
+router.get(
+  "/getOrganizationTask/:customer_id",
+  authenticateToken,
+  async (req, res) => {
+    console.log("items");
+    try {
+      await client.connect();
+
+      const collection = database.collection("Task");
+
+      const customer_id = req.params.customer_id;
+
+      const items = await collection
+        .find({ customer_id: new ObjectId(customer_id) })
+        .toArray();
+      console.log("items");
+      res.status(200).json(items);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    } finally {
+      await client.close();
+    }
+  }
+);
+
+//done
 router.get("/getAllCustomers", authenticateToken, async (req, res) => {
   try {
     await client.connect();
@@ -115,7 +141,7 @@ router.get("/getAllCustomers", authenticateToken, async (req, res) => {
 });
 
 //done
-router.get("/getAllTaskAttachments", authenticateToken, async (req, res) => {
+router.get("/getAllAttachments", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
@@ -129,6 +155,30 @@ router.get("/getAllTaskAttachments", authenticateToken, async (req, res) => {
     await client.close();
   }
 });
+
+//done
+router.get(
+  "/getTaskAttachments/:task_id",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await client.connect();
+
+      const task_id = req.params.task_id;
+
+      const collection = database.collection("TaskAttachment");
+
+      const items = await collection
+        .find({ task_id: new ObjectId(task_id) })
+        .toArray();
+      res.status(200).json(items);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    } finally {
+      await client.close();
+    }
+  }
+);
 
 //done
 router.get("/getAllReports", authenticateToken, async (req, res) => {
@@ -145,6 +195,29 @@ router.get("/getAllReports", authenticateToken, async (req, res) => {
     await client.close();
   }
 });
+
+//done
+router.get(
+  "/getAllReports/:customer_id",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await client.connect();
+      const customer_id = req.params.customer_id;
+
+      const collection = database.collection("Reports");
+
+      const items = await collection
+        .find({ customer_id: new ObjectId(customer_id) })
+        .toArray();
+      res.status(200).json(items);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    } finally {
+      await client.close();
+    }
+  }
+);
 
 // Get all customers created by specific user -> done
 router.get(
@@ -469,91 +542,101 @@ router.delete("/deleteUser/:user_id", authenticateToken, async (req, res) => {
 });
 
 //Delete report by ID -> done
-router.delete("/deleteReport/:report_id", authenticateToken, async (req, res) => {
-  try {
-    await client.connect();
+router.delete(
+  "/deleteReport/:report_id",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await client.connect();
 
-    const collection = database.collection("Reports");
+      const collection = database.collection("Reports");
 
-    const reportId = req.params.report_id;
+      const reportId = req.params.report_id;
 
-    if (!ObjectId.isValid(reportId)) {
-      return res.status(400).json({ message: "Invalid Report ID format" });
+      if (!ObjectId.isValid(reportId)) {
+        return res.status(400).json({ message: "Invalid Report ID format" });
+      }
+
+      const result = await collection.deleteOne({
+        _id: new ObjectId(reportId),
+      });
+
+      if (result.deletedCount === 1) {
+        res.status(200).json({ message: "Report deleted successfully" });
+      } else {
+        res.status(404).json({ message: "Report not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    } finally {
+      await client.close();
     }
-
-    const result = await collection.deleteOne({ _id: new ObjectId(reportId) });
-
-    if (result.deletedCount === 1) {
-      res.status(200).json({ message: "Report deleted successfully" });
-    } else {
-      res.status(404).json({ message: "Report not found" });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
-});
+);
 
 //Change user role -> done
-router.patch("/changeUserRole/:target_id", authenticateToken, async (req, res) => {
-  try {
-    await client.connect();
+router.patch(
+  "/changeUserRole/:target_id",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await client.connect();
 
-    const collection = database.collection("User");
+      const collection = database.collection("User");
 
-    const user = req.user;
-    const targetUserId = req.params.target_id;
+      const user = req.user;
+      const targetUserId = req.params.target_id;
 
-    if (!ObjectId.isValid(targetUserId)) {
-      return res.status(400).json({ message: "Invalid User ID format" });
-    }
+      if (!ObjectId.isValid(targetUserId)) {
+        return res.status(400).json({ message: "Invalid User ID format" });
+      }
 
-    if (user.role === "member") {
-      return res
-        .status(400)
-        .json({ message: "Members cannot change another user's role." });
-    }
+      if (user.role === "member") {
+        return res
+          .status(400)
+          .json({ message: "Members cannot change another user's role." });
+      }
 
-    const targetUser = await collection.findOne({
-      _id: new ObjectId(targetUserId),
-    });
-
-    if (!targetUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (targetUser.role === "admin") {
-      return res.status(403).json({ message: "Admins cannot change roles" });
-    }
-
-    let newRole;
-    if (targetUser.role === "supervisor") {
-      newRole = "member";
-    } else if (targetUser.role === "member") {
-      newRole = "supervisor";
-    } else {
-      return res.status(400).json({ message: "Invalid role" });
-    }
-
-    const updateResult = await collection.updateOne(
-      { _id: new ObjectId(userId) },
-      { $set: { role: newRole } }
-    );
-
-    if (updateResult.modifiedCount === 1) {
-      res.status(200).json({
-        message: `User role changed to ${newRole} successfully`,
+      const targetUser = await collection.findOne({
+        _id: new ObjectId(targetUserId),
       });
-    } else {
-      res.status(500).json({ message: "Failed to change user role" });
+
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (targetUser.role === "admin") {
+        return res.status(403).json({ message: "Admins cannot change roles" });
+      }
+
+      let newRole;
+      if (targetUser.role === "supervisor") {
+        newRole = "member";
+      } else if (targetUser.role === "member") {
+        newRole = "supervisor";
+      } else {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+
+      const updateResult = await collection.updateOne(
+        { _id: new ObjectId(userId) },
+        { $set: { role: newRole } }
+      );
+
+      if (updateResult.modifiedCount === 1) {
+        res.status(200).json({
+          message: `User role changed to ${newRole} successfully`,
+        });
+      } else {
+        res.status(500).json({ message: "Failed to change user role" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    } finally {
+      await client.close();
     }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
-});
+);
 
 //Post Method create customer -> only if ID being used is an admin
 router.post("/createCustomer/", authenticateToken, async (req, res) => {
