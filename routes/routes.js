@@ -865,6 +865,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
     await client.connect();
 
     const taskCollection = database.collection("Task");
+    const teamsCollection = database.collection("Team")
 
     const user = req.user;
 
@@ -902,6 +903,11 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
     };
 
     const result = await taskCollection.insertOne(taskData);
+
+    await teamsCollection.updateOne(
+      { _id: new ObjectId(team_id) },
+      { $push: { tasks: result.insertedId } } 
+    );
 
     res.status(201).json({
       message: "Task created successfully",
