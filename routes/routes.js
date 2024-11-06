@@ -865,7 +865,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
     await client.connect();
 
     const taskCollection = database.collection("Task");
-    const teamsCollection = database.collection("Team")
+    const teamsCollection = database.collection("Team");
 
     const user = req.user;
 
@@ -906,7 +906,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
 
     await teamsCollection.updateOne(
       { _id: new ObjectId(team_id) },
-      { $push: { tasks: result.insertedId } } 
+      { $push: { tasks: result.insertedId } }
     );
 
     res.status(201).json({
@@ -915,6 +915,90 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  } finally {
+    await client.close();
+  }
+});
+
+router.post("/createMessage", authenticateToken, async (req, res) => {
+  const { messageId, subject, customer_id, message, recipient } = req.body;
+
+  try {
+    await client.connect();
+    const messageThread = database.collection("Message");
+    const messageEntry = database.collection("MessageEntry");
+
+    if (!messageId) {
+      const newMessageThread = {
+        _id: new ObjectId(),
+        subject,
+        customer_id: new ObjectId(customer_id),
+        created_by: req.user._id,
+        updated_by: req.user._id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+        people: recipient.map((id) => new ObjectId(id)),
+        messages: [],
+      };
+
+      const resultThread = await messageThread.insertOne(
+        newMessageThread
+      );
+
+      const newMessageEntry = {
+        _id: new ObjectId(),
+        thread_id: resultThread.insertedId,
+        sender_id: req.user._id,
+        sender_name: req.user.name,
+        content: message,
+        sentAt: new Date(),
+        isRead: false,
+        attachments: [],
+      };
+
+      await messageEntry.insertOne(newMessageEntry);
+
+      await messageThread.updateOne(
+        { _id: resultThread.insertedId },
+        { $push: { messages: newMessageEntry._id } }
+      );
+
+      res.status(201).json({
+        message: "New conversation created with initial message.",
+        thread: newMessageThread,
+        entry: newMessageEntry,
+      });
+    } else {
+      const newMessageEntry = {
+        _id: new ObjectId(),
+        thread_id: new ObjectId(messageId),
+        sender_id: req.user._id,
+        sender_name: req.user.name,
+        content: message,
+        sentAt: new Date(),
+        isRead: false,
+        attachments: [],
+      };
+
+      await messageEntry.insertOne(newMessageEntry);
+
+      await messageThread.updateOne(
+        { _id: new ObjectId(messageId) },
+        {
+          $set: { updatedAt: new Date() },
+          $push: { messages: newMessageEntry._id },
+        }
+      );
+
+      res.status(201).json({
+        message: "Message added to existing conversation.",
+        entry: newMessageEntry,
+      });
+    }
+  } catch (error) {
+    console.error("Error creating message:", error);
+    res.status(500).json({ message: "Failed to create message.", error });
   } finally {
     await client.close();
   }
