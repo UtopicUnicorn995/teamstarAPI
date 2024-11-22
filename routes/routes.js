@@ -574,70 +574,6 @@ router.delete(
   }
 );
 
-//Change user role -> done
-router.patch(
-  "/changeUserRole/:target_id",
-  authenticateToken,
-  async (req, res) => {
-    try {
-      await client.connect();
-
-      const collection = database.collection("User");
-
-      const user = req.user;
-      const targetUserId = req.params.target_id;
-
-      if (!ObjectId.isValid(targetUserId)) {
-        return res.status(400).json({ message: "Invalid User ID format" });
-      }
-
-      if (user.role === "member") {
-        return res
-          .status(400)
-          .json({ message: "Members cannot change another user's role." });
-      }
-
-      const targetUser = await collection.findOne({
-        _id: new ObjectId(targetUserId),
-      });
-
-      if (!targetUser) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      if (targetUser.role === "admin") {
-        return res.status(403).json({ message: "Admins cannot change roles" });
-      }
-
-      let newRole;
-      if (targetUser.role === "supervisor") {
-        newRole = "member";
-      } else if (targetUser.role === "member") {
-        newRole = "supervisor";
-      } else {
-        return res.status(400).json({ message: "Invalid role" });
-      }
-
-      const updateResult = await collection.updateOne(
-        { _id: new ObjectId(userId) },
-        { $set: { role: newRole } }
-      );
-
-      if (updateResult.modifiedCount === 1) {
-        res.status(200).json({
-          message: `User role changed to ${newRole} successfully`,
-        });
-      } else {
-        res.status(500).json({ message: "Failed to change user role" });
-      }
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    } finally {
-      await client.close();
-    }
-  }
-);
-
 //Post Method create customer -> only if ID being used is an admin
 router.post("/createCustomer/", authenticateToken, async (req, res) => {
   const { name, email } = req.body;
@@ -889,7 +825,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
       status: status,
       team_id: new ObjectId(team_id),
       assignee: assignee ? new ObjectId(assignee) : null,
-      location: location || null,
+      location: new ObjectId(location) || null,
       customer_id: customer_id
         ? new ObjectId(customer_id)
         : new ObjectId(user.customer_id),
@@ -942,9 +878,7 @@ router.post("/createMessage", authenticateToken, async (req, res) => {
         messages: [],
       };
 
-      const resultThread = await messageThread.insertOne(
-        newMessageThread
-      );
+      const resultThread = await messageThread.insertOne(newMessageThread);
 
       const newMessageEntry = {
         _id: new ObjectId(),
@@ -1003,6 +937,170 @@ router.post("/createMessage", authenticateToken, async (req, res) => {
     await client.close();
   }
 });
+
+router.post("/createEvent", authenticateToken, async (req, res) => {
+  const {
+    title,
+    description,
+    eventDate,
+    eventStartTime = "8:00", // Default value
+    eventEndTime = "9:00", // Default value
+    customer_id,
+    location,
+    members,
+  } = req.body;
+
+  try {
+    // Validate start and end times
+    const [startHour, startMinute] = eventStartTime.split(":").map(Number);
+    const [endHour, endMinute] = eventEndTime.split(":").map(Number);
+
+    const startTimeInMinutes = startHour * 60 + startMinute;
+    const endTimeInMinutes = endHour * 60 + endMinute;
+
+    if (startTimeInMinutes >= endTimeInMinutes) {
+      return res.status(400).json({
+        error: "Event start time must be before the end time.",
+      });
+    }
+
+    // Connect to database
+    await client.connect();
+    const eventCollection = database.collection("Event");
+    const userCollection = database.collection("User");
+
+    // Validate members
+    const memberIds = members.map((id) => new ObjectId(id));
+    const validMembers = await userCollection
+      .find({ _id: { $in: memberIds } })
+      .toArray();
+
+    if (validMembers.length !== members.length) {
+      return res.status(400).json({
+        error: "Some members are invalid or not associated with this customer.",
+      });
+    }
+
+    // Create new event
+    const newEvent = {
+      _id: new ObjectId(),
+      customer_id: new ObjectId(customer_id),
+      title,
+      description,
+      eventDate: eventDate ? new Date(eventDate) : new Date(),
+      eventStartTime,
+      eventEndTime,
+      location: location || null,
+      members: validMembers.map((member) => member._id),
+    };
+
+    // Insert event into database
+    const result = await eventCollection.insertOne(newEvent);
+
+    if (result.insertedId) {
+      return res.status(201).json({
+        message: "Event created successfully",
+        eventId: result.insertedId,
+      });
+    } else {
+      throw new Error("Failed to insert the event.");
+    }
+  } catch (error) {
+    console.error("Error creating event:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  } finally {
+    await client.close();
+  }
+});
+
+
+//Change user role -> done
+router.patch(
+  "/changeUserRole/:target_id",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await client.connect();
+
+      const userCollection = database.collection("User");
+      const customDataCollection = database.collection("CustomUserData");
+
+      const user = req.user;
+      const targetUserId = req.params.target_id;
+
+      if (!ObjectId.isValid(targetUserId)) {
+        return res.status(400).json({ message: "Invalid User ID format" });
+      }
+
+      if (user.role === "member") {
+        return res
+          .status(400)
+          .json({ message: "Members cannot change another user's role." });
+      }
+
+      const targetUser = await userCollection.findOne({
+        _id: new ObjectId(targetUserId),
+      });
+
+      const targetCustomUserData = await customDataCollection.findOne({
+        external_id: new ObjectId(targetUserId),
+      });
+
+      console.log(targetUser, targetCustomUserData);
+
+      if (!targetUser || !targetCustomUserData) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (
+        targetUser.role === "admin" ||
+        targetCustomUserData.role === "admin"
+      ) {
+        return res.status(403).json({ message: "Admins cannot change roles" });
+      }
+
+      let newRole;
+      if (
+        targetUser.role === "supervisor" ||
+        targetCustomUserData === "supervisor"
+      ) {
+        newRole = "member";
+      } else if (
+        targetUser.role === "member" ||
+        targetCustomUserData === "member"
+      ) {
+        newRole = "supervisor";
+      } else {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+
+      const updatedUserResult = await userCollection.updateOne(
+        { _id: new ObjectId(targetUserId) },
+        { $set: { role: newRole } }
+      );
+
+      const updatedCustomDataResult = await customDataCollection.updateMany(
+        { external_id: new ObjectId(targetUserId) },
+        { $set: { role: newRole } }
+      );
+
+      if (
+        updatedUserResult.modifiedCount === 1 &&
+        updatedCustomDataResult.modifiedCount === 1
+      ) {
+        res.status(200).json({
+          message: `User role changed to ${newRole} successfully`,
+        });
+      } else {
+        res.status(500).json({ message: "Failed to change user role" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    } finally {
+      await client.close();
+    }
+  }
+);
 
 //Update task by ID Method -> done
 router.put("/updateTask/:id", authenticateToken, async (req, res) => {
@@ -1109,13 +1207,24 @@ router.put("/updateCurrentUser/", authenticateToken, async (req, res) => {
     const { name, phone, pin, email } = req.body;
 
     const userCollection = database.collection("User");
+    const customDataCollection = database.collection("CustomUserData");
     const user = req.user._id;
 
     const currentUser = await userCollection.findOne({
       _id: new ObjectId(user),
     });
 
+    const customData = await customDataCollection.findOne({
+      external_id: new ObjectId(user),
+    });
+
+    console.log(currentUser, customData);
+
     if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!customData) {
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -1126,49 +1235,8 @@ router.put("/updateCurrentUser/", authenticateToken, async (req, res) => {
       email: email ? email : currentUser.email,
     };
 
-    const result = await userCollection.updateOne(
-      { _id: new ObjectId(user) },
-      { $set: updatedUser }
-    );
-
-    if (result.modifiedCount === 0) {
-      return res.status(304).json({ message: "No changes made to the User" });
-    }
-
-    res.status(200).json({
-      message: "User updated successfully",
-      updateId: updatedUser.insertedId,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
-});
-
-//Update the current user -> pending
-router.put("//", authenticateToken, async (req, res) => {
-  try {
-    await client.connect();
-
-    const { name, phone, pin, email } = req.body;
-
-    const userCollection = database.collection("User");
-    const user = req.user._id;
-
-    const currentUser = await userCollection.findOne({
-      _id: new ObjectId(user),
-    });
-
-    if (!currentUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const updatedUser = {
+    const updatedCustomData = {
       name: name ? name : currentUser.name,
-      phone: phone ? phone : currentUser.phone,
-      pin: pin ? pin : currentUser.pin,
-      email: email ? email : currentUser.email,
     };
 
     const result = await userCollection.updateOne(
@@ -1176,13 +1244,19 @@ router.put("//", authenticateToken, async (req, res) => {
       { $set: updatedUser }
     );
 
-    if (result.modifiedCount === 0) {
+    const customDataResult = await customDataCollection.updateOne(
+      { external_id: new ObjectId(user) },
+      { $set: updatedCustomData }
+    );
+
+    if (result.modifiedCount === 0 || customDataResult.modifiedCount === 0) {
       return res.status(304).json({ message: "No changes made to the User" });
     }
 
     res.status(200).json({
       message: "User updated successfully",
-      updateId: updatedUser.insertedId,
+      updatedUserId: updatedUser.insertedId,
+      updatedCustomDataId: updatedCustomData.insertedId,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
