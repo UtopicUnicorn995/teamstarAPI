@@ -795,6 +795,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
     updated_by,
     completedAt,
     deletedAt,
+    linkURL
   } = req.body;
 
   try {
@@ -826,6 +827,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
       team_id: new ObjectId(team_id),
       assignee: assignee ? new ObjectId(assignee) : null,
       location: new ObjectId(location) || null,
+      linkURL: linkURL ? linkURL : '',
       customer_id: customer_id
         ? new ObjectId(customer_id)
         : new ObjectId(user.customer_id),
