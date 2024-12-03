@@ -858,6 +858,29 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
   }
 });
 
+router.get("/getTaskByTitle/:taskTitle", authenticateToken, async (req, res) => {
+  try {
+    await client.connect();
+
+    const collection = database.collection("Task");
+
+    const taskTitle = req.params.taskTitle;
+
+    const task = await collection.findOne({ title: taskTitle });
+
+    if (task) {
+      res.status(200).json(task); 
+    } else {
+      res.status(404).json({ message: "Task not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  } finally {
+    await client.close();
+  }
+});
+
+
 router.post("/createMessage", authenticateToken, async (req, res) => {
   const { messageId, subject, customer_id, message, recipient } = req.body;
 
