@@ -858,15 +858,17 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
   }
 });
 
-router.get("/getTaskByTitle/:taskTitle", authenticateToken, async (req, res) => {
+router.get("/getTaskByTitle/", authenticateToken, async (req, res) => {
   try {
     await client.connect();
 
     const collection = database.collection("Task");
 
-    const taskTitle = req.params.taskTitle;
+    const taskTitle = req.query.title;
 
     const task = await collection.findOne({ title: taskTitle });
+
+    console.log(taskTitle)
 
     if (task) {
       res.status(200).json(task); 
@@ -879,7 +881,6 @@ router.get("/getTaskByTitle/:taskTitle", authenticateToken, async (req, res) => 
     await client.close();
   }
 });
-
 
 router.post("/createMessage", authenticateToken, async (req, res) => {
   const { messageId, subject, customer_id, message, recipient } = req.body;
@@ -1037,7 +1038,6 @@ router.post("/createEvent", authenticateToken, async (req, res) => {
     await client.close();
   }
 });
-
 
 //Change user role -> done
 router.patch(
