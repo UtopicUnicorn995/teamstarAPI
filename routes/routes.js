@@ -866,9 +866,7 @@ router.get("/getTaskByTitle/", authenticateToken, async (req, res) => {
 
     const taskTitle = req.query.title;
 
-    const task = await collection.findOne({ title: taskTitle });
-
-    console.log(taskTitle)
+    const task = await collection.find({ title: taskTitle }).sort({ createdAt: -1 }).toArray();
 
     if (task) {
       res.status(200).json(task); 
