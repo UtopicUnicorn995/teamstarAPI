@@ -1288,4 +1288,70 @@ router.put("/updateCurrentUser/", authenticateToken, async (req, res) => {
   }
 });
 
+router.put("/changeUserPassword/", authenticateToken, async (req, res) => {
+  try {
+    await client.connect();
+
+    const { name, phone, pin, email } = req.body;
+
+    const userCollection = database.collection("User");
+    const customDataCollection = database.collection("CustomUserData");
+    const user = req.user._id;
+
+    const currentUser = await userCollection.findOne({
+      _id: new ObjectId(user),
+    });
+
+    const customData = await customDataCollection.findOne({
+      external_id: new ObjectId(user),
+    });
+
+    console.log(currentUser, customData);
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!customData) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const updatedUser = {
+      name: name ? name : currentUser.name,
+      phone: phone ? phone : currentUser.phone,
+      pin: pin ? pin : currentUser.pin,
+      email: email ? email : currentUser.email,
+    };
+
+    const updatedCustomData = {
+      name: name ? name : currentUser.name,
+    };
+
+    const result = await userCollection.updateOne(
+      { _id: new ObjectId(user) },
+      { $set: updatedUser }
+    );
+
+    const customDataResult = await customDataCollection.updateOne(
+      { external_id: new ObjectId(user) },
+      { $set: updatedCustomData }
+    );
+
+    if (result.modifiedCount === 0 || customDataResult.modifiedCount === 0) {
+      return res.status(304).json({ message: "No changes made to the User" });
+    }
+
+    res.status(200).json({
+      message: "User updated successfully",
+      updatedUserId: updatedUser.insertedId,
+      updatedCustomDataId: updatedCustomData.insertedId,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  } finally {
+    await client.close();
+  }
+});
+
+
 module.exports = router;
