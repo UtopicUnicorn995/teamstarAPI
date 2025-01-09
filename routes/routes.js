@@ -511,6 +511,7 @@ router.delete("/deleteTask/:id", authenticateToken, async (req, res) => {
     const taskCommentsCollection = database.collection("TaskComment");
     const taskAttachmentCollection = database.collection("TaskAttachment");
     const checklistCollection = database.collection("Checklist");
+    const usersCollection = database.collection("User");
 
     const taskId = req.params.id;
     const user_id = req.user._id;
@@ -519,11 +520,15 @@ router.delete("/deleteTask/:id", authenticateToken, async (req, res) => {
       return res.status(400).json({ message: "Invalid Task ID format" });
     }
 
-    if (user_id.role !== "admin" && user_id.role !== "supervisor") {
+    const user = await usersCollection.findOne({ _id: new ObjectId(user_id) });
+
+    if (user.role !== "admin" && user.role !== "supervisor") {
       return res
         .status(401)
         .json({ message: "User is not authorized to delete task." });
     }
+
+    console.log('fut')
 
     const deletedTask = await tasksCollection.deleteOne({
       _id: new ObjectId(taskId),
