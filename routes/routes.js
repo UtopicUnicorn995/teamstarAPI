@@ -446,6 +446,61 @@ router.get("/getReport/:id", authenticateToken, async (req, res) => {
   }
 });
 
+router.get(
+  "/getCustomerTeams/:customer_id",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await client.connect();
+
+      const collection = database.collection("Team");
+
+      const customer_id = req.params.customer_id;
+
+      console.log("customer id", customer_id);
+
+      const teams = await collection
+        .find({ customer_id: new ObjectId(customer_id) })
+        .toArray();
+
+      if (teams) {
+        res.status(200).json(teams);
+      } else {
+        res.status(404).json({ message: "Teams not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    } finally {
+      await client.close();
+    }
+  }
+);
+
+router.get("/getTaskByTitle/", authenticateToken, async (req, res) => {
+  try {
+    await client.connect();
+
+    const collection = database.collection("Task");
+
+    const taskTitle = req.query.title;
+
+    const task = await collection
+      .find({ title: taskTitle })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    if (task) {
+      res.status(200).json(task);
+    } else {
+      res.status(404).json({ message: "Task not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  } finally {
+    await client.close();
+  }
+});
+
 //Delete task by ID -> done
 router.delete("/deleteTask/:id", authenticateToken, async (req, res) => {
   try {
@@ -464,7 +519,7 @@ router.delete("/deleteTask/:id", authenticateToken, async (req, res) => {
       return res.status(400).json({ message: "Invalid Task ID format" });
     }
 
-    if (user_id.role !== "admin" || user_id.role !== "supervisor") {
+    if (user_id.role !== "admin" && user_id.role !== "supervisor") {
       return res
         .status(401)
         .json({ message: "User is not authorized to delete task." });
@@ -593,6 +648,14 @@ router.post("/createCustomer/", authenticateToken, async (req, res) => {
         .json({ message: "The inviter is not an admin or supervsor" });
     }
 
+    if (!name) {
+      return res.status(400).json({ message: "Name is required." });
+    }
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
     const newCustomer = {
       _id: new ObjectId(),
       name,
@@ -637,6 +700,31 @@ router.post("/createReport/", authenticateToken, async (req, res) => {
         .status(403)
         .json({ message: "Only members can create reports" });
     }
+
+    if (!title) {
+      return res.status(400).json({ message: "Report title is required" });
+    }
+
+    if (!description) {
+      return res
+        .status(400)
+        .json({ message: "Report description is required" });
+    }
+
+    if (!customer_id) {
+      return res
+        .status(400)
+        .json({ message: "Customer ID of the customer is required" });
+    }
+
+
+    if (!recepient) {
+      return res
+        .status(400)
+        .json({ message: "Report recepient is required" });
+    }
+
+
     const newReport = {
       user_id: new ObjectId(user._id),
       title,
@@ -668,12 +756,46 @@ router.post("/createNewUser", async (req, res) => {
     const userCollection = database.collection("User");
     const customerCollection = database.collection("Customer");
 
-    const existingUser = await userCollection.findOne({ phone });
-    if (existingUser) {
+    const existingUserPhone = await userCollection.findOne({ phone });
+    const existingUserEmail = await userCollection.findOne({ email });
+
+    if (existingUserPhone) {
       return res
         .status(400)
         .json({ message: "Phone number already registered" });
     }
+
+    if (existingUserEmail) {
+      return res
+        .status(400)
+        .json({ message: "Email address already registered" });
+    }
+
+    if (!companyName) {
+      return res
+        .status(400)
+        .json({ message: "Company name is required to register" });
+    }
+
+    if (!email || !phone) {
+      return res
+        .status(400)
+        .json({ message: "Email address or phone number is required to registered" });
+    }
+
+    if (!name) {
+      return res
+        .status(400)
+        .json({ message: "New user's name is required to registered" });
+    }
+    
+    if (!pin) {
+      return res
+        .status(400)
+        .json({ message: "Password is required to registered" });
+    }
+
+
 
     const newUser = {
       _id: new ObjectId(),
@@ -795,7 +917,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
     updated_by,
     completedAt,
     deletedAt,
-    linkURL
+    linkURL,
   } = req.body;
 
   try {
@@ -827,7 +949,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
       team_id: new ObjectId(team_id),
       assignee: assignee ? new ObjectId(assignee) : null,
       location: new ObjectId(location) || null,
-      linkURL: linkURL ? linkURL : '',
+      linkURL: linkURL ? linkURL : "",
       customer_id: customer_id
         ? new ObjectId(customer_id)
         : new ObjectId(user.customer_id),
@@ -851,28 +973,6 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
       message: "Task created successfully",
       task: result.insertedId,
     });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
-});
-
-router.get("/getTaskByTitle/", authenticateToken, async (req, res) => {
-  try {
-    await client.connect();
-
-    const collection = database.collection("Task");
-
-    const taskTitle = req.query.title;
-
-    const task = await collection.find({ title: taskTitle }).sort({ createdAt: -1 }).toArray();
-
-    if (task) {
-      res.status(200).json(task); 
-    } else {
-      res.status(404).json({ message: "Task not found" });
-    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   } finally {
@@ -1352,6 +1452,5 @@ router.put("/changeUserPassword/", authenticateToken, async (req, res) => {
     await client.close();
   }
 });
-
 
 module.exports = router;
