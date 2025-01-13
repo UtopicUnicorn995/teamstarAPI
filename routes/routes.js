@@ -528,8 +528,6 @@ router.delete("/deleteTask/:id", authenticateToken, async (req, res) => {
         .json({ message: "User is not authorized to delete task." });
     }
 
-    console.log("fut");
-
     const deletedTask = await tasksCollection.deleteOne({
       _id: new ObjectId(taskId),
     });
@@ -722,9 +720,13 @@ router.post("/createReport/", authenticateToken, async (req, res) => {
         .json({ message: "Customer ID of the customer is required" });
     }
 
+
     if (!recepient) {
-      return res.status(400).json({ message: "Report recepient is required" });
+      return res
+        .status(400)
+        .json({ message: "Report recepient is required" });
     }
+
 
     const newReport = {
       user_id: new ObjectId(user._id),
@@ -781,9 +783,7 @@ router.post("/createNewUser", async (req, res) => {
     if (!email || !phone) {
       return res
         .status(400)
-        .json({
-          message: "Email address or phone number is required to registered",
-        });
+        .json({ message: "Email address or phone number is required to registered" });
     }
 
     if (!name) {
@@ -791,12 +791,14 @@ router.post("/createNewUser", async (req, res) => {
         .status(400)
         .json({ message: "New user's name is required to registered" });
     }
-
+    
     if (!pin) {
       return res
         .status(400)
         .json({ message: "Password is required to registered" });
     }
+
+
 
     const newUser = {
       _id: new ObjectId(),
@@ -921,14 +923,11 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
     linkURL,
   } = req.body;
 
-  const client2 = new MongoClient(mongoString);
-  const database2 = client2.db("task_management");
-
   try {
-    await client2.connect();
+    await client.connect();
 
-    const taskCollection = database2.collection("Task");
-    const teamsCollection = database2.collection("Team");
+    const taskCollection = database.collection("Task");
+    const teamsCollection = database.collection("Team");
 
     const user = req.user;
 
@@ -980,7 +979,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   } finally {
-    await client2.close();
+    await client.close();
   }
 });
 
