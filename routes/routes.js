@@ -937,18 +937,31 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
         .json({ message: "Members are not allowed to create a task" });
     }
 
+    if(!title){
+      return res
+      .status(400)
+      .json({ message: "Title is required to create a task." });
+    }
+
+    if(!team_id){
+      return res
+      .status(400)
+      .json({ message: "Team ID is required to create a task." });
+    }
+
+
     const taskData = {
       _id: new ObjectId(),
       title: title,
       description: description || null,
       due: due ? new Date(due) : null,
-      startTime: startTime || null,
-      endTime: endTime || null,
+      startTime: startTime || "08:00",
+      endTime: endTime || "09:00",
       duration: new Double(duration) || new Double(0),
       recurring: recurring || null,
       nextSchedules: nextSchedules || "",
-      priorityLevel: priorityLevel,
-      status: status,
+      priorityLevel: priorityLevel || 'medium',
+      status: status || 'open',
       team_id: new ObjectId(team_id),
       assignee: assignee ? new ObjectId(assignee) : null,
       location: new ObjectId(location) || null,
