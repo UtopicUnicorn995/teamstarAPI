@@ -80,6 +80,38 @@ router.get("/getAllUsers", authenticateToken, async (req, res) => {
   }
 });
 
+router.post('/findUserId', async (req, res) => {
+  try {
+    await client.connect(); 
+    const userCollection = database.collection('User');
+
+    const { email, phoneNumber } = req.body;
+
+   
+    const query = {};
+    if (email) {
+      query.email = email;
+    } else if (phoneNumber) {
+      query.phone = phoneNumber;
+    } else {
+      return res.status(400).json({ message: 'Email or phone number is required.' });
+    }
+
+    const result = await userCollection.findOne(query);
+
+    if (result) {
+      res.status(200).json({ message: 'User found.', user: result });
+    } else {
+      res.status(404).json({ message: 'User not found.' });
+    }
+  } catch (error) {
+    console.error('Error finding user:', error);
+    res.status(500).json({ message: 'Internal server error.', error: error.message });
+  } finally {
+    await client.close(); 
+  }
+});
+
 //done
 router.get("/getAllTasks", authenticateToken, async (req, res) => {
   console.log("items");
@@ -720,13 +752,9 @@ router.post("/createReport/", authenticateToken, async (req, res) => {
         .json({ message: "Customer ID of the customer is required" });
     }
 
-
     if (!recepient) {
-      return res
-        .status(400)
-        .json({ message: "Report recepient is required" });
+      return res.status(400).json({ message: "Report recepient is required" });
     }
-
 
     const newReport = {
       user_id: new ObjectId(user._id),
@@ -783,7 +811,9 @@ router.post("/createNewUser", async (req, res) => {
     if (!email || !phone) {
       return res
         .status(400)
-        .json({ message: "Email address or phone number is required to registered" });
+        .json({
+          message: "Email address or phone number is required to registered",
+        });
     }
 
     if (!name) {
@@ -791,14 +821,12 @@ router.post("/createNewUser", async (req, res) => {
         .status(400)
         .json({ message: "New user's name is required to registered" });
     }
-    
+
     if (!pin) {
       return res
         .status(400)
         .json({ message: "Password is required to registered" });
     }
-
-
 
     const newUser = {
       _id: new ObjectId(),
@@ -937,18 +965,17 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
         .json({ message: "Members are not allowed to create a task" });
     }
 
-    if(!title){
+    if (!title) {
       return res
-      .status(400)
-      .json({ message: "Title is required to create a task." });
+        .status(400)
+        .json({ message: "Title is required to create a task." });
     }
 
-    if(!team_id){
+    if (!team_id) {
       return res
-      .status(400)
-      .json({ message: "Team ID is required to create a task." });
+        .status(400)
+        .json({ message: "Team ID is required to create a task." });
     }
-
 
     const taskData = {
       _id: new ObjectId(),
@@ -960,8 +987,8 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
       duration: new Double(duration) || new Double(0),
       recurring: recurring || null,
       nextSchedules: nextSchedules || "",
-      priorityLevel: priorityLevel || 'medium',
-      status: status || 'open',
+      priorityLevel: priorityLevel || "medium",
+      status: status || "open",
       team_id: new ObjectId(team_id),
       assignee: assignee ? new ObjectId(assignee) : null,
       location: new ObjectId(location) || null,
@@ -1468,5 +1495,20 @@ router.put("/changeUserPassword/", authenticateToken, async (req, res) => {
     await client.close();
   }
 });
+
+// router.put("/forgotPassword/", async (req, res) => {
+//   try {
+//     await client.connect();
+
+//     const {password} = req.body
+
+//     const userCollection = database.collection("User");
+//     const customDataCollection = database.collection("CustomUserData");
+
+
+//   } catch (error) {
+//     res.status(500).json({message: error.message})
+//   }
+// });
 
 module.exports = router;
