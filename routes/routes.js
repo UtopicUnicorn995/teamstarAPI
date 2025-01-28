@@ -938,7 +938,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
     const taskData = {
       _id: new ObjectId(),
       title: title,
-      description: description || null,
+      description: description ? description : null,
       due: due ? new Date(due) : null,
       startTime: startTime || "08:00",
       endTime: endTime || "09:00",
@@ -946,15 +946,15 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
       recurring: recurring || null,
       nextSchedules: nextSchedules || "",
       priorityLevel: priorityLevel || "medium",
-      status: status || "open",
+      status: status ? status : "open",
       team_id: new ObjectId(team_id),
       assignee: assignee ? new ObjectId(assignee) : null,
-      location: new ObjectId(location) || null,
+      location: location ? new ObjectId(location) : null,
       linkURL: linkURL ? linkURL : "",
       customer_id: customer_id
         ? new ObjectId(customer_id)
         : new ObjectId(user.customer_id),
-      created_by: new ObjectId(created_by),
+      created_by: created_by ? new ObjectId(created_by) : new ObjectId(user._id),
       updated_by: updated_by ? new ObjectId(updated_by) : null,
       completedAt: completedAt ? new Date(completedAt) : null,
       notificationSent: false,
