@@ -4,8 +4,18 @@ const jwt = require("jsonwebtoken");
 const router = express.Router();
 const mongoString = process.env.DATABASE_URL;
 
-const client = new MongoClient(mongoString);
-const database = client.db("task_management");
+// const client = new MongoClient(mongoString);
+// const database = client.db("task_management");
+
+let client
+
+async function initializeDbConnection() {
+  if (!client) {
+    client = new MongoClient(mongoString);
+    const database = await initializeDbConnection()
+  }
+  return client.db("task_management")
+}
 
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
@@ -31,8 +41,8 @@ router.post("/login", async (req, res) => {
   const { phone, pin } = req.body;
 
   try {
-    await client.connect();
-    const database = client.db("task_management");
+    const database = await initializeDbConnection()
+    // const database = client.db("task_management");
     const userCollection = database.collection("User");
 
     const user = await userCollection.findOne({ phone });
@@ -60,55 +70,52 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
 //Get all Method
 router.get("/getAllUsers", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
     const collection = database.collection("User");
 
     const items = await collection.find({}).toArray();
     res.status(200).json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
-router.post('/findUserId', async (req, res) => {
+router.post("/findUserId", async (req, res) => {
   try {
-    await client.connect(); 
-    const userCollection = database.collection('User');
+    const database = await initializeDbConnection()
+    const userCollection = database.collection("User");
 
     const { email, phoneNumber } = req.body;
 
-   
     const query = {};
     if (email) {
       query.email = email;
     } else if (phoneNumber) {
       query.phone = phoneNumber;
     } else {
-      return res.status(400).json({ message: 'Email or phone number is required.' });
+      return res
+        .status(400)
+        .json({ message: "Email or phone number is required." });
     }
 
     const result = await userCollection.findOne(query);
 
     if (result) {
-      res.status(200).json({ message: 'User found.', user: result });
+      res.status(200).json({ message: "User found.", user: result });
     } else {
-      res.status(404).json({ message: 'User not found.' });
+      res.status(404).json({ message: "User not found." });
     }
   } catch (error) {
-    console.error('Error finding user:', error);
-    res.status(500).json({ message: 'Internal server error.', error: error.message });
-  } finally {
-    await client.close(); 
+    console.error("Error finding user:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error.", error: error.message });
   }
 });
 
@@ -116,7 +123,7 @@ router.post('/findUserId', async (req, res) => {
 router.get("/getAllTasks", authenticateToken, async (req, res) => {
   console.log("items");
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("Task");
 
@@ -125,8 +132,6 @@ router.get("/getAllTasks", authenticateToken, async (req, res) => {
     res.status(200).json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
@@ -137,7 +142,7 @@ router.get(
   async (req, res) => {
     console.log("items");
     try {
-      await client.connect();
+      const database = await initializeDbConnection()
 
       const collection = database.collection("Task");
 
@@ -150,8 +155,6 @@ router.get(
       res.status(200).json(items);
     } catch (error) {
       res.status(500).json({ message: error.message });
-    } finally {
-      await client.close();
     }
   }
 );
@@ -159,23 +162,20 @@ router.get(
 //done
 router.get("/getAllCustomers", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
-
+    const database = await initializeDbConnection()
     const collection = database.collection("Customer");
 
     const items = await collection.find({}).toArray();
     res.status(200).json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
 //done
 router.get("/getAllAttachments", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("TaskAttachment");
 
@@ -183,8 +183,6 @@ router.get("/getAllAttachments", authenticateToken, async (req, res) => {
     res.status(200).json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
@@ -194,7 +192,7 @@ router.get(
   authenticateToken,
   async (req, res) => {
     try {
-      await client.connect();
+      const database = await initializeDbConnection()
 
       const task_id = req.params.task_id;
 
@@ -206,8 +204,6 @@ router.get(
       res.status(200).json(items);
     } catch (error) {
       res.status(500).json({ message: error.message });
-    } finally {
-      await client.close();
     }
   }
 );
@@ -215,7 +211,7 @@ router.get(
 //done
 router.get("/getAllReports", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("Reports");
 
@@ -223,18 +219,31 @@ router.get("/getAllReports", authenticateToken, async (req, res) => {
     res.status(200).json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
+  }
+});
+
+//done
+router.get("/getAllMessages/", authenticateToken, async (req, res) => {
+  try {
+    const database = await initializeDbConnection()
+
+    const collection = database.collection("MessageEntry");
+
+    const item = await collection.find({}).toArray();
+
+    res.status(200).json(item);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
 //done
 router.get(
-  "/getAllReports/:customer_id",
+  "/getCustomerReports/:customer_id",
   authenticateToken,
   async (req, res) => {
     try {
-      await client.connect();
+      const database = await initializeDbConnection()
       const customer_id = req.params.customer_id;
 
       const collection = database.collection("Reports");
@@ -245,8 +254,6 @@ router.get(
       res.status(200).json(items);
     } catch (error) {
       res.status(500).json({ message: error.message });
-    } finally {
-      await client.close();
     }
   }
 );
@@ -257,7 +264,7 @@ router.get(
   authenticateToken,
   async (req, res) => {
     try {
-      await client.connect();
+      const database = await initializeDbConnection()
 
       const collection = database.collection("Customer");
 
@@ -280,8 +287,6 @@ router.get(
       }
     } catch (error) {
       res.status(500).json({ message: error.message });
-    } finally {
-      await client.close();
     }
   }
 );
@@ -289,7 +294,7 @@ router.get(
 // Get all tasks used by certain customer -> done
 router.get("/getCreatedTasks/:user_id", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("Task");
     const user_id = req.params.user_id;
@@ -311,15 +316,13 @@ router.get("/getCreatedTasks/:user_id", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
 //Get by specific queries
 router.get("/getUser/:user_id", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("User");
 
@@ -338,15 +341,13 @@ router.get("/getUser/:user_id", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
 //Get details by the current User
 router.get("/getCurrentUser/", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("User");
 
@@ -365,15 +366,13 @@ router.get("/getCurrentUser/", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
 //done
 router.get("/getTask/:id", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("Task");
 
@@ -392,15 +391,13 @@ router.get("/getTask/:id", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //done
 router.get("/getCustomer/:id", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("Customer");
 
@@ -419,17 +416,15 @@ router.get("/getCustomer/:id", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  }   
 });
 
 //done
 router.get("/getAttachment/:id", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
-    const collection = database.collection("TaskAttachments");
+    const collection = database.collection("TaskAttachment");
 
     const reportId = req.params.id;
 
@@ -442,20 +437,17 @@ router.get("/getAttachment/:id", authenticateToken, async (req, res) => {
     if (item) {
       res.status(200).json(item);
     } else {
-      res.status(404).json({ message: "Report not found" });
+      res.status(404).json({ message: "Task attachment not found" });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
 //done
 router.get("/getReport/:id", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
-
+    const database = await initializeDbConnection()
     const collection = database.collection("Reports");
 
     const reportId = req.params.id;
@@ -473,8 +465,6 @@ router.get("/getReport/:id", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
   }
 });
 
@@ -483,7 +473,7 @@ router.get(
   authenticateToken,
   async (req, res) => {
     try {
-      await client.connect();
+      const database = await initializeDbConnection()
 
       const collection = database.collection("Team");
 
@@ -502,15 +492,13 @@ router.get(
       }
     } catch (error) {
       res.status(500).json({ message: error.message });
-    } finally {
-      await client.close();
     }
   }
 );
 
 router.get("/getTaskByTitle/", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("Task");
 
@@ -528,15 +516,13 @@ router.get("/getTaskByTitle/", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //Delete task by ID -> done
 router.delete("/deleteTask/:id", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const tasksCollection = database.collection("Task");
     const historyLogsCollection = database.collection("TaskHistoryLog");
@@ -590,15 +576,13 @@ router.delete("/deleteTask/:id", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //Delete user by ID -> done
 router.delete("/deleteUser/:user_id", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const collection = database.collection("User");
 
@@ -626,9 +610,7 @@ router.delete("/deleteUser/:user_id", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //Delete report by ID -> done
@@ -637,7 +619,7 @@ router.delete(
   authenticateToken,
   async (req, res) => {
     try {
-      await client.connect();
+      const database = await initializeDbConnection()
 
       const collection = database.collection("Reports");
 
@@ -658,8 +640,6 @@ router.delete(
       }
     } catch (error) {
       res.status(500).json({ message: error.message });
-    } finally {
-      await client.close();
     }
   }
 );
@@ -669,7 +649,7 @@ router.post("/createCustomer/", authenticateToken, async (req, res) => {
   const { name, email } = req.body;
 
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
     const userCollection = database.collection("User");
     const customerCollection = database.collection("Customer");
 
@@ -711,9 +691,7 @@ router.post("/createCustomer/", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //Post method create report -> only if the ID being used is a member
@@ -722,19 +700,13 @@ router.post("/createReport/", authenticateToken, async (req, res) => {
   const user = req.user;
 
   try {
-    await client.connect();
-    const userCollection = database.collection("User");
+    const database = await initializeDbConnection()
     const reportCollection = database.collection("Reports");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.role !== "member") {
-      return res
-        .status(403)
-        .json({ message: "Only members can create reports" });
-    }
 
     if (!title) {
       return res.status(400).json({ message: "Report title is required" });
@@ -744,12 +716,6 @@ router.post("/createReport/", authenticateToken, async (req, res) => {
       return res
         .status(400)
         .json({ message: "Report description is required" });
-    }
-
-    if (!customer_id) {
-      return res
-        .status(400)
-        .json({ message: "Customer ID of the customer is required" });
     }
 
     if (!recepient) {
@@ -773,9 +739,7 @@ router.post("/createReport/", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //Post method to create an admin account
@@ -783,7 +747,7 @@ router.post("/createNewUser", async (req, res) => {
   const { companyName, email, name, phone, pin } = req.body;
 
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
     const userCollection = database.collection("User");
     const customerCollection = database.collection("Customer");
 
@@ -809,11 +773,9 @@ router.post("/createNewUser", async (req, res) => {
     }
 
     if (!email || !phone) {
-      return res
-        .status(400)
-        .json({
-          message: "Email address or phone number is required to registered",
-        });
+      return res.status(400).json({
+        message: "Email address or phone number is required to registered",
+      });
     }
 
     if (!name) {
@@ -865,9 +827,7 @@ router.post("/createNewUser", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //Post method to add a member to the team and to create a new user
@@ -875,7 +835,7 @@ router.post("/addMember/", authenticateToken, async (req, res) => {
   const { name, phone, pin } = req.body;
 
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
     const userCollection = database.collection("User");
 
     const inviter_id = req.user._id;
@@ -922,9 +882,7 @@ router.post("/addMember/", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //Post Method create tasks -> done
@@ -952,7 +910,7 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
   } = req.body;
 
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const taskCollection = database.collection("Task");
     const teamsCollection = database.collection("Team");
@@ -1018,16 +976,14 @@ router.post("/createTask/", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 router.post("/createMessage", authenticateToken, async (req, res) => {
   const { messageId, subject, customer_id, message, recipient } = req.body;
 
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
     const messageThread = database.collection("Message");
     const messageEntry = database.collection("MessageEntry");
 
@@ -1100,9 +1056,7 @@ router.post("/createMessage", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Error creating message:", error);
     res.status(500).json({ message: "Failed to create message.", error });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 router.post("/createEvent", authenticateToken, async (req, res) => {
@@ -1132,7 +1086,7 @@ router.post("/createEvent", authenticateToken, async (req, res) => {
     }
 
     // Connect to database
-    await client.connect();
+    const database = await initializeDbConnection()
     const eventCollection = database.collection("Event");
     const userCollection = database.collection("User");
 
@@ -1175,9 +1129,7 @@ router.post("/createEvent", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Error creating event:", error);
     return res.status(500).json({ error: "Internal server error" });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //Change user role -> done
@@ -1186,7 +1138,7 @@ router.patch(
   authenticateToken,
   async (req, res) => {
     try {
-      await client.connect();
+      const database = await initializeDbConnection()
 
       const userCollection = database.collection("User");
       const customDataCollection = database.collection("CustomUserData");
@@ -1262,8 +1214,6 @@ router.patch(
       }
     } catch (error) {
       res.status(500).json({ message: error.message });
-    } finally {
-      await client.close();
     }
   }
 );
@@ -1271,7 +1221,7 @@ router.patch(
 //Update task by ID Method -> done
 router.put("/updateTask/:id", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const {
       title,
@@ -1360,15 +1310,13 @@ router.put("/updateTask/:id", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 //Update the current user -> done
 router.put("/updateCurrentUser/", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const { name, phone, pin, email } = req.body;
 
@@ -1426,14 +1374,12 @@ router.put("/updateCurrentUser/", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 router.put("/changeUserPassword/", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
+    const database = await initializeDbConnection()
 
     const { name, phone, pin, email } = req.body;
 
@@ -1491,20 +1437,17 @@ router.put("/changeUserPassword/", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 // router.put("/forgotPassword/", async (req, res) => {
 //   try {
-//     await client.connect();
+//     const database = await initializeDbConnection()
 
 //     const {password} = req.body
 
 //     const userCollection = database.collection("User");
 //     const customDataCollection = database.collection("CustomUserData");
-
 
 //   } catch (error) {
 //     res.status(500).json({message: error.message})
