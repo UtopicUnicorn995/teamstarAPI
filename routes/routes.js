@@ -690,7 +690,7 @@ router.post("/createCustomer/", authenticateToken, async (req, res) => {
 
 //Post method create report -> only if the ID being used is a member
 router.post("/createReport/", authenticateToken, async (req, res) => {
-  const { title, description, customer_id, recepient } = req.body;
+  const { title, description, customer_id, recipient } = req.body;
   const user = req.user;
 
   try {
@@ -711,8 +711,8 @@ router.post("/createReport/", authenticateToken, async (req, res) => {
         .json({ message: "Report description is required" });
     }
 
-    if (!recepient) {
-      return res.status(400).json({ message: "Report recepient is required" });
+    if (!recipient) {
+      return res.status(400).json({ message: "Report recipient is required" });
     }
 
     const newReport = {
@@ -722,7 +722,7 @@ router.post("/createReport/", authenticateToken, async (req, res) => {
       customer_id: customer_id
         ? new ObjectId(customer_id)
         : new ObjectId(user.customer_id),
-      recepient: new ObjectId(recepient),
+      recipient: new ObjectId(recipient),
       status: "pending",
     };
     const result = await reportCollection.insertOne(newReport);
