@@ -1128,88 +1128,108 @@ router.post("/createEvent", authenticateToken, async (req, res) => {
 });
 
 //Change user role -> done
-router.patch(
-  "/changeUserRole/:target_id",
-  authenticateToken,
-  async (req, res) => {
-    try {
-      const database = await initializeDbConnection();
+router.patch("/changeUserRole/", authenticateToken, async (req, res) => {
+  const { target_id, team_id } = req.body;
 
-      const userCollection = database.collection("User");
-      const customDataCollection = database.collection("CustomUserData");
-
-      const user = req.user;
-      const targetUserId = req.params.target_id;
-
-      if (!ObjectId.isValid(targetUserId)) {
-        return res.status(400).json({ message: "Invalid User ID format" });
-      }
-
-      if (user.role === "member") {
-        return res
-          .status(400)
-          .json({ message: "Members cannot change another user's role." });
-      }
-
-      const targetUser = await userCollection.findOne({
-        _id: new ObjectId(targetUserId),
-      });
-
-      const targetCustomUserData = await customDataCollection.findOne({
-        external_id: new ObjectId(targetUserId),
-      });
-
-      if (!targetUser || !targetCustomUserData) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      if (
-        targetUser.role === "admin" ||
-        targetCustomUserData.role === "admin"
-      ) {
-        return res.status(403).json({ message: "Admins cannot change roles" });
-      }
-
-      let newRole;
-      if (
-        targetUser.role === "supervisor" ||
-        targetCustomUserData === "supervisor"
-      ) {
-        newRole = "member";
-      } else if (
-        targetUser.role === "member" ||
-        targetCustomUserData === "member"
-      ) {
-        newRole = "supervisor";
-      } else {
-        return res.status(400).json({ message: "Invalid role" });
-      }
-
-      const updatedUserResult = await userCollection.updateOne(
-        { _id: new ObjectId(targetUserId) },
-        { $set: { role: newRole } }
-      );
-
-      const updatedCustomDataResult = await customDataCollection.updateMany(
-        { external_id: new ObjectId(targetUserId) },
-        { $set: { role: newRole } }
-      );
-
-      if (
-        updatedUserResult.modifiedCount === 1 &&
-        updatedCustomDataResult.modifiedCount === 1
-      ) {
-        res.status(200).json({
-          message: `User role changed to ${newRole} successfully`,
-        });
-      } else {
-        res.status(500).json({ message: "Failed to change user role" });
-      }
-    } catch (error) {
-      res.status(500).json({ message: error.message });
+  try {
+    if (!ObjectId.isValid(target_id) || !ObjectId.isValid(team_id)) {
+      return res.status(400).json({ message: "Invalid user or team ID format" });
     }
+
+    const database = await initializeDbConnection();
+    const userCollection = database.collection("User");
+    const customDataCollection = database.collection("CustomUserData");
+    const teamCollection = database.collection("Team");
+
+    const targetUser = await userCollection.findOne({ _id: new ObjectId(target_id) });
+    const targetCustomUserData = await customDataCollection.findOne({ external_id: new ObjectId(target_id) });
+    const team = await teamCollection.findOne({ _id: new ObjectId(team_id) });
+
+    if (!targetUser && !targetCustomUserData) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!team) {
+      return res.status(404).json({ message: "Team not found" });
+    }
+
+    const currentRole = targetUser?.role || targetCustomUserData?.role;
+
+    if (currentRole === "admin") {
+      return res.status(403).json({ message: "Admins cannot change roles." });
+    }
+
+    let newRole;
+    let updateOperations = [];
+
+    // Check if there's already a supervisor in the team
+    const currentSupervisorId = team.supervisors?.[0];
+
+    if (currentRole === "member") {
+      newRole = "supervisor";
+
+      if (currentSupervisorId) {
+        updateOperations.push(
+          userCollection.updateOne({ _id: new ObjectId(currentSupervisorId) }, { $set: { role: "member" } })
+        );
+        updateOperations.push(
+          customDataCollection.updateOne({ external_id: new ObjectId(currentSupervisorId) }, { $set: { role: "member" } })
+        );
+
+        await teamCollection.updateOne(
+          { _id: new ObjectId(team_id) },
+          {
+            $pull: { supervisors: currentSupervisorId },
+            $push: { members: currentSupervisorId }
+          }
+        );
+      }
+
+      // Assign new supervisor
+      updateOperations.push(
+        teamCollection.updateOne(
+          { _id: new ObjectId(team_id) },
+          {
+            $pull: { members: target_id },
+            $set: { supervisors: [target_id] }
+          }
+        )
+      );
+
+    } else if (currentRole === "supervisor") {
+      newRole = "member";
+
+      // Demote the supervisor to a member
+      updateOperations.push(
+        teamCollection.updateOne(
+          { _id: new ObjectId(team_id) },
+          {
+            $pull: { supervisors: target_id },
+            $push: { members: new ObjectId(target_id) }
+          }
+        )
+      );
+    } else {
+      return res.status(400).json({ message: "Invalid role." });
+    }
+
+    // Update the user's role in both collections
+    updateOperations.push(
+      userCollection.updateOne({ _id: new ObjectId(target_id) }, { $set: { role: newRole } })
+    );
+    updateOperations.push(
+      customDataCollection.updateOne({ external_id: new ObjectId(target_id) }, { $set: { role: newRole } })
+    );
+
+    await Promise.all(updateOperations);
+
+    return res.status(200).json({ message: `User role changed to ${newRole} successfully.` });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
-);
+});
+
 
 //Update task by ID Method -> done
 router.put("/updateTask/:id", authenticateToken, async (req, res) => {
@@ -1386,7 +1406,6 @@ router.put("/changeUserPassword/", authenticateToken, async (req, res) => {
       external_id: new ObjectId(user),
     });
 
-
     if (!currentUser) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -1445,7 +1464,6 @@ router.put("/forgotPassword/", async (req, res) => {
     const userToReplacePassword = await userCollection.findOne({
       _id: new ObjectId(id),
     });
-
 
     if (!userToReplacePassword) {
       return res.status(404).json({ message: "User not found" });
