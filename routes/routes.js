@@ -1486,7 +1486,7 @@ router.put("/forgotPassword/", async (req, res) => {
 
 //Application API
 router.get('/getAppVersionCode/', async (req, res) => {
-  const appVersionCode = '2002000';
+  const appVersionCode = '2003000';
 
   if (appVersionCode) {
     res.status(200).json({ versionCode: appVersionCode }); 
