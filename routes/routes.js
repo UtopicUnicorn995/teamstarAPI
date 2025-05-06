@@ -1133,7 +1133,9 @@ router.patch("/changeUserRole/", authenticateToken, async (req, res) => {
 
   try {
     if (!ObjectId.isValid(target_id) || !ObjectId.isValid(team_id)) {
-      return res.status(400).json({ message: "Invalid user or team ID format" });
+      return res
+        .status(400)
+        .json({ message: "Invalid user or team ID format" });
     }
 
     const database = await initializeDbConnection();
@@ -1141,8 +1143,12 @@ router.patch("/changeUserRole/", authenticateToken, async (req, res) => {
     const customDataCollection = database.collection("CustomUserData");
     const teamCollection = database.collection("Team");
 
-    const targetUser = await userCollection.findOne({ _id: new ObjectId(target_id) });
-    const targetCustomUserData = await customDataCollection.findOne({ external_id: new ObjectId(target_id) });
+    const targetUser = await userCollection.findOne({
+      _id: new ObjectId(target_id),
+    });
+    const targetCustomUserData = await customDataCollection.findOne({
+      external_id: new ObjectId(target_id),
+    });
     const team = await teamCollection.findOne({ _id: new ObjectId(team_id) });
 
     if (!targetUser && !targetCustomUserData) {
@@ -1170,17 +1176,23 @@ router.patch("/changeUserRole/", authenticateToken, async (req, res) => {
 
       if (currentSupervisorId) {
         updateOperations.push(
-          userCollection.updateOne({ _id: new ObjectId(currentSupervisorId) }, { $set: { role: "member" } })
+          userCollection.updateOne(
+            { _id: new ObjectId(currentSupervisorId) },
+            { $set: { role: "member" } }
+          )
         );
         updateOperations.push(
-          customDataCollection.updateOne({ external_id: new ObjectId(currentSupervisorId) }, { $set: { role: "member" } })
+          customDataCollection.updateOne(
+            { external_id: new ObjectId(currentSupervisorId) },
+            { $set: { role: "member" } }
+          )
         );
 
         await teamCollection.updateOne(
           { _id: new ObjectId(team_id) },
           {
             $pull: { supervisors: currentSupervisorId },
-            $push: { members: currentSupervisorId }
+            $push: { members: currentSupervisorId },
           }
         );
       }
@@ -1191,11 +1203,10 @@ router.patch("/changeUserRole/", authenticateToken, async (req, res) => {
           { _id: new ObjectId(team_id) },
           {
             $pull: { members: target_id },
-            $set: { supervisors: [target_id] }
+            $set: { supervisors: [target_id] },
           }
         )
       );
-
     } else if (currentRole === "supervisor") {
       newRole = "member";
 
@@ -1205,7 +1216,7 @@ router.patch("/changeUserRole/", authenticateToken, async (req, res) => {
           { _id: new ObjectId(team_id) },
           {
             $pull: { supervisors: target_id },
-            $push: { members: new ObjectId(target_id) }
+            $push: { members: new ObjectId(target_id) },
           }
         )
       );
@@ -1215,21 +1226,27 @@ router.patch("/changeUserRole/", authenticateToken, async (req, res) => {
 
     // Update the user's role in both collections
     updateOperations.push(
-      userCollection.updateOne({ _id: new ObjectId(target_id) }, { $set: { role: newRole } })
+      userCollection.updateOne(
+        { _id: new ObjectId(target_id) },
+        { $set: { role: newRole } }
+      )
     );
     updateOperations.push(
-      customDataCollection.updateOne({ external_id: new ObjectId(target_id) }, { $set: { role: newRole } })
+      customDataCollection.updateOne(
+        { external_id: new ObjectId(target_id) },
+        { $set: { role: newRole } }
+      )
     );
 
     await Promise.all(updateOperations);
 
-    return res.status(200).json({ message: `User role changed to ${newRole} successfully.` });
-
+    return res
+      .status(200)
+      .json({ message: `User role changed to ${newRole} successfully.` });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
-
 
 //Update task by ID Method -> done
 router.put("/updateTask/:id", authenticateToken, async (req, res) => {
@@ -1489,28 +1506,25 @@ router.put("/forgotPassword/", async (req, res) => {
 //   const appVersionCode = '2';
 
 //   if (appVersionCode) {
-//     res.status(200).json({ versionCode: appVersionCode }); 
+//     res.status(200).json({ versionCode: appVersionCode });
 //   } else {
 //     res.status(404).json({ message: "Version code not found" });
 //   }
 // });
 
-router.get('/getAppVersionCode/', async (req, res) => {
-  const userAgent = req.headers['user-agent'] || '';
+router.get("/getAppVersionCode/", async (req, res) => {
+  const platform = req.query.platform;
   let appVersionCode;
 
-  // Detect platform based on User-Agent
-  if (userAgent.toLowerCase().includes('iphone') || userAgent.toLowerCase().includes('ios')) {
-    appVersionCode = '210'; // iOS version code
+  if (platform === "iOS") {
+    appVersionCode = "210";
+  } else if (platform === "Android") {
+    appVersionCode = "2002000";
   } else {
-    appVersionCode = '2002000'; // Android version code
+    return res.status(400).json({ message: "Invalid platform specified" });
   }
 
-  if (appVersionCode) {
-    res.status(200).json({ versionCode: appVersionCode });
-  } else {
-    res.status(404).json({ message: "Version code not found" });
-  }
+  res.status(200).json({ versionCode: appVersionCode });
 });
 
 module.exports = router;
