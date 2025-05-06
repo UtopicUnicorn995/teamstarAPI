@@ -1485,32 +1485,32 @@ router.put("/forgotPassword/", async (req, res) => {
 });
 
 //Application API
-router.get('/getAppVersionCode/', async (req, res) => {
-  const appVersionCode = '2';
-
-  if (appVersionCode) {
-    res.status(200).json({ versionCode: appVersionCode }); 
-  } else {
-    res.status(404).json({ message: "Version code not found" });
-  }
-});
-
 // router.get('/getAppVersionCode/', async (req, res) => {
-//   const userAgent = req.headers['user-agent'] || '';
-//   let appVersionCode;
-
-//   // Detect platform based on User-Agent
-//   if (userAgent.toLowerCase().includes('iphone') || userAgent.toLowerCase().includes('ios')) {
-//     appVersionCode = '3003000'; // iOS version code
-//   } else {
-//     appVersionCode = '2002000'; // Android version code
-//   }
+//   const appVersionCode = '2';
 
 //   if (appVersionCode) {
-//     res.status(200).json({ versionCode: appVersionCode });
+//     res.status(200).json({ versionCode: appVersionCode }); 
 //   } else {
 //     res.status(404).json({ message: "Version code not found" });
 //   }
 // });
+
+router.get('/getAppVersionCode/', async (req, res) => {
+  const userAgent = req.headers['user-agent'] || '';
+  let appVersionCode;
+
+  // Detect platform based on User-Agent
+  if (userAgent.toLowerCase().includes('iphone') || userAgent.toLowerCase().includes('ios')) {
+    appVersionCode = '210'; // iOS version code
+  } else {
+    appVersionCode = '2002000'; // Android version code
+  }
+
+  if (appVersionCode) {
+    res.status(200).json({ versionCode: appVersionCode });
+  } else {
+    res.status(404).json({ message: "Version code not found" });
+  }
+});
 
 module.exports = router;
