@@ -1501,23 +1501,13 @@ router.put("/forgotPassword/", async (req, res) => {
   }
 });
 
-//Application API
-// router.get('/getAppVersionCode/', async (req, res) => {
-//   const appVersionCode = '2';
-
-//   if (appVersionCode) {
-//     res.status(200).json({ versionCode: appVersionCode });
-//   } else {
-//     res.status(404).json({ message: "Version code not found" });
-//   }
-// });
 
 router.get("/getAppVersionCode/", async (req, res) => {
   const platform = req.query.platform;
   let appVersionCode;
 
   if (platform === "iOS") {
-    appVersionCode = "210";
+    appVersionCode = "230";
   } else if (platform === "Android") {
     appVersionCode = "2002000";
   } else {
