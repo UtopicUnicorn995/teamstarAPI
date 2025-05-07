@@ -1507,7 +1507,7 @@ router.get("/getAppVersionCode/", async (req, res) => {
   let appVersionCode;
 
   if (platform === "iOS") {
-    appVersionCode = "200";
+    appVersionCode = "0";
   } else if (platform === "Android") {
     appVersionCode = "2002000";
   } else {
