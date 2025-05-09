@@ -2,6 +2,7 @@ const express = require("express");
 const { MongoClient, ObjectId, Admin, Double } = require("mongodb");
 const jwt = require("jsonwebtoken");
 const router = express.Router();
+const mongoose = require("mongoose");
 const mongoString = process.env.DATABASE_URL;
 
 // const client = new MongoClient(mongoString);
@@ -1501,7 +1502,6 @@ router.put("/forgotPassword/", async (req, res) => {
   }
 });
 
-
 router.get("/getAppVersionCode/", async (req, res) => {
   const platform = req.query.platform;
   let appVersionCode;
@@ -1515,6 +1515,32 @@ router.get("/getAppVersionCode/", async (req, res) => {
   }
 
   res.status(200).json({ versionCode: appVersionCode });
+});
+
+router.post("/backupDatabase", authenticateToken, async (req, res) => {
+  try {
+    const mainDb = await initializeDbConnection();
+    const backupDb = client.db("task_management_backup"); // same cluster, new DB
+
+    const collections = await mainDb.listCollections().toArray();
+
+    for (const { name } of collections) {
+      const data = await mainDb.collection(name).find({}).toArray();
+      const backupCollection = backupDb.collection(name);
+
+      await backupCollection.deleteMany({}); // optional: clear old backup
+      if (data.length > 0) {
+        await backupCollection.insertMany(data);
+      }
+    }
+
+    res
+      .status(200)
+      .json({ message: "Backup completed to 'task_management_backup'" });
+  } catch (error) {
+    console.error("Backup error:", error);
+    res.status(500).json({ message: "Backup failed", error: error.message });
+  }
 });
 
 module.exports = router;
