@@ -1520,7 +1520,7 @@ router.get("/getAppVersionCode/", async (req, res) => {
 router.post("/backupDatabase", authenticateToken, async (req, res) => {
   try {
     const mainDb = await initializeDbConnection();
-    const backupDb = client.db("task_management_backup"); // same cluster, new DB
+    const backupDb = client.db("task_management_backup");
 
     const collections = await mainDb.listCollections().toArray();
 
@@ -1528,7 +1528,7 @@ router.post("/backupDatabase", authenticateToken, async (req, res) => {
       const data = await mainDb.collection(name).find({}).toArray();
       const backupCollection = backupDb.collection(name);
 
-      await backupCollection.deleteMany({}); // optional: clear old backup
+      await backupCollection.deleteMany({});
       if (data.length > 0) {
         await backupCollection.insertMany(data);
       }
@@ -1540,6 +1540,86 @@ router.post("/backupDatabase", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Backup error:", error);
     res.status(500).json({ message: "Backup failed", error: error.message });
+  }
+});
+
+router.post("/createTasksFromBeds24", async (req, res) => {
+  const booking = req.body.booking;
+
+  if (!booking || !booking.arrival || !booking.departure || !booking.roomId) {
+    return res.status(400).json({ message: "Invalid booking payload" });
+  }
+
+  try {
+    const database = await initializeDbConnection();
+    const taskCollection = database.collection("Task");
+    const teamsCollection = database.collection("Team");
+
+    const customer_id = new ObjectId("6822d59d0df15a0f73069016");
+    const team_id = new ObjectId("6822d623b21fff812ff097c8");
+    const created_by = customer_id;
+
+    const checkInDate = new Date(booking.arrival);
+    const checkOutDate = new Date(booking.departure);
+    const beforeCheckInTime = new Date(
+      checkInDate.getTime() - 3 * 60 * 60 * 1000
+    ); // 3 hours before
+
+    const tasks = [
+      {
+        title: "Before Check-In Cleaning",
+        description: `Clean room before check-in for booking ${booking.id}`,
+        due: beforeCheckInTime,
+        startTime: "09:00",
+        endTime: "10:00",
+      },
+      {
+        title: "After Check-Out Cleaning",
+        description: `Clean room after check-out for booking ${booking.id}`,
+        due: checkOutDate,
+        startTime: "12:00",
+        endTime: "13:00",
+      },
+    ];
+
+    for (const task of tasks) {
+      const taskData = {
+        _id: new ObjectId(),
+        title: task.title,
+        description: task.description,
+        due: task.due,
+        startTime: task.startTime,
+        endTime: task.endTime,
+        duration: new Double(1),
+        recurring: null,
+        nextSchedules: "",
+        priorityLevel: "medium",
+        status: "open",
+        team_id: team_id,
+        assignee: null,
+        location: null,
+        linkURL: "", // Optional: e.g., you can add a link to booking detail page here
+        customer_id: customer_id,
+        created_by: created_by,
+        updated_by: null,
+        completedAt: null,
+        notificationSent: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+
+      const result = await taskCollection.insertOne(taskData);
+      await teamsCollection.updateOne(
+        { _id: team_id },
+        { $push: { tasks: result.insertedId } }
+      );
+    }
+
+    res.status(201).json({ message: "Tasks created successfully" });
+  } catch (error) {
+    console.error("Error creating tasks from Beds24:", error);
+    res.status(500).json({ message: "Failed to create tasks" });
   }
 });
 
